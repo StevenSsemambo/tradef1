@@ -6581,15 +6581,12 @@ function generateBehaviorInsight() {
 }
 
 
-function renderSettings() {
-  const base = _origRenderSettings();
-  return base.replace(
-    "{key:'dark',    label:'🌙 Dark Gold',  desc:'Default'}",   
-        {key:'midnight', label:'🌌 Midnight',  desc:'Deep blue'},
-        {key:'sand',    label:'🏖️ Sand',       desc:'Warm cream'},
+return base.replace(
+  "{key:'dark',    label:'🌙 Dark Gold',  desc:'Default'}",   
+      {key:'midnight', label:'🌌 Midnight',  desc:'Deep blue'},
+      {key:'sand',    label:'🏖️ Sand',       desc:'Warm cream'},
 "
-  );
-}
+);
 
 console.log('✅ TradeBaby v6 Analytics + Float Chat loaded');
 
