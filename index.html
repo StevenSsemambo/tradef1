@@ -7144,22 +7144,45 @@ function launchApp() {
   setTimeout(() => {
     const splash = document.getElementById('splash');
     const app    = document.getElementById('app');
+
     if (splash) {
       splash.style.transition = 'opacity .5s ease';
       splash.style.opacity = '0';
-      setTimeout(() => { if (splash) splash.style.display = 'none'; }, 500);
+      setTimeout(() => {
+        if (splash) splash.style.display = 'none';
+      }, 500);
     }
+
     if (app) app.style.display = 'flex';
 
-    if (!STATE.user.onboarded) {
-      showOnboarding();
-    } else {
-      navigate('home');
-      if (!STATE.user.toured) setTimeout(startTour, 1200);
+    try {
+
+      if (!STATE?.user?.onboarded) {
+        if (typeof showOnboarding === "function") {
+          showOnboarding();
+        }
+      } else {
+        if (typeof navigate === "function") {
+          navigate('home');
+        }
+
+        if (!STATE.user.toured && typeof startTour === "function") {
+          setTimeout(startTour, 1200);
+        }
+      }
+
+      if (typeof initNotifications === "function") {
+        initNotifications();
+      }
+
+      if (typeof checkInstallPrompt === "function") {
+        checkInstallPrompt();
+      }
+
+    } catch (e) {
+      console.error("Launch error:", e);
     }
 
-    initNotifications();
-    checkInstallPrompt();
   }, 300);
 }
 
