@@ -1,4 +1,3 @@
-/* ═══ STATE ═══ */
 /* ═══════════════════════════════════════════
    STATE MANAGEMENT & NAVIGATION
    TradeBaby Pro v4 — SayMy Tech
@@ -93,12 +92,12 @@ function updateStreak() {
 // ── THEME ──
 function applyTheme(t) {
   STATE.user.theme = t;
-  const themes = ['dark','light','slate','matrix','ocean','crimson','forest'];
+  const themes = ['dark','light','sand','midnight','slate','matrix','ocean','crimson','forest'];
   if (t === 'dark') document.documentElement.removeAttribute('data-theme');
   else document.documentElement.setAttribute('data-theme', t);
   const metaColors = {
-    dark:'#0A0A0F', light:'#F7F4EE', slate:'#0D1117',
-    matrix:'#020A04', ocean:'#040810', crimson:'#0F0508', forest:'#050F08'
+    dark:'#080E14', light:'#F0F6FF', sand:'#FAF5EC', midnight:'#04071A',
+    slate:'#0D1117', matrix:'#020806', ocean:'#020C14', crimson:'#0F0608', forest:'#050C06',
   };
   const meta = document.getElementById('theme-color-meta');
   if (meta) meta.content = metaColors[t] || '#0A0A0F';
@@ -110,75 +109,22 @@ function applyFontSize(s) {
 }
 
 function applyBrightness(v) {
-  STATE.user.brightness = v;
-  document.documentElement.style.setProperty('--brightness', v / 100);
+  STATE.user.brightness = parseInt(v) || 100;
+  // Apply filter directly to documentElement so it works everywhere
+  const val = STATE.user.brightness / 100;
+  document.documentElement.style.filter = val === 1 ? '' : `brightness(${val})`;
+  // Also set the CSS var for any future use
+  document.documentElement.style.setProperty('--brightness', val);
 }
 
 // ── NAVIGATION ──
-const NAV_ORDER = ['home','learn','trade','journal','mentor','profile'];
 
 let _simPriceInterval = null;
 let _clockInterval = null;
 
-function navigate(screen, opts = {}) {
-  // Stop background intervals
-  if (_simPriceInterval) { clearInterval(_simPriceInterval); _simPriceInterval = null; }
-  if (_clockInterval && screen !== 'home') { clearInterval(_clockInterval); _clockInterval = null; }
+// navigate() defined in app.js
 
-  STATE.screen = screen;
-
-  // Update nav highlight
-  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
-  const navMap = { home:'ni-home', learn:'ni-learn', trade:'ni-trade', journal:'ni-journal', mentor:'ni-mentor', profile:'ni-profile' };
-  const navId = navMap[screen];
-  if (navId) { const nb = document.getElementById(navId); if (nb) nb.classList.add('active'); }
-
-  // Render with direction animation
-  renderScreen(screen);
-
-  // Scroll to top
-  const sw = document.getElementById('screen-wrap');
-  if (sw) sw.scrollTop = 0;
-}
-
-function renderScreen(screen) {
-  const el = document.getElementById('screen');
-  if (!el) return;
-
-  const renderers = {
-    home:       renderHome,
-    learn:      renderLearn,
-    lesson:     renderLesson,
-    trade:      renderTrade,
-    journal:    renderJournal,
-    mentor:     renderMentor,
-    profile:    renderProfile,
-    strategies: renderStrategies,
-    calculator: renderCalculator,
-    analytics:  renderAnalytics,
-    settings:   renderSettings,
-    flashcards: renderFlashcards,
-    patterns:   renderPatternGame,
-    candlebible:renderCandleBible,
-    skillmap:   renderSkillMap,
-    curriculum: renderCurriculum,
-    notifications: renderNotifications,
-  };
-
-  const fn = renderers[screen];
-  if (fn) {
-    el.innerHTML = '';
-    el.innerHTML = fn();
-    // Post-render hooks
-    if (screen === 'trade') initSimChart();
-    if (screen === 'analytics') initEquityChart();
-    if (screen === 'home') { initForexClock(); }
-    if (screen === 'patterns') drawPatternCanvas();
-    if (screen === 'mentor') scrollChatToBottom();
-  } else {
-    el.innerHTML = renderHome();
-  }
-}
+// renderScreen() defined in app.js
 
 // ── XP & LEVELS ──
 function addXP(amt) {
@@ -302,35 +248,15 @@ function addNotification(text, icon = '📢') {
 }
 
 // ── TOAST ──
-function showToast(msg, duration = 2800) {
-  const container = document.getElementById('toast-container');
-  if (!container) return;
-  const item = document.createElement('div');
-  item.className = 'toast-item';
-  item.innerHTML = msg;
-  container.appendChild(item);
-  setTimeout(() => { item.style.opacity = '0'; item.style.transition = 'opacity .3s'; }, duration - 300);
-  setTimeout(() => item.remove(), duration);
-}
+// function showToast() defined in app.js
+
 
 // ── MODAL ──
-function showModal(html) {
-  closeModal();
-  const backdrop = document.getElementById('modal-backdrop');
-  const box = document.getElementById('modal-box');
-  if (!backdrop || !box) return;
-  box.innerHTML = html;
-  backdrop.style.display = 'flex';
-  const sw = document.getElementById('screen-wrap');
-  let startY = 0;
-  box.addEventListener('touchstart', e => { startY = e.touches[0].clientY; }, { passive: true });
-  box.addEventListener('touchend', e => { if (e.changedTouches[0].clientY - startY > 80) closeModal(); });
-}
+// function showModal() defined in app.js
 
-function closeModal() {
-  const backdrop = document.getElementById('modal-backdrop');
-  if (backdrop) backdrop.style.display = 'none';
-}
+
+// function closeModal() defined in app.js
+
 
 // ── HELPERS ──
 function completedCount() { return Object.keys(STATE.progress).length; }
@@ -347,14 +273,24 @@ function el(id) { return document.getElementById(id); }
 
 // ── SWIPE GESTURES ──
 (function initSwipe() {
-  let tx = 0, ty = 0;
-  document.addEventListener('touchstart', e => { tx = e.touches[0].clientX; ty = e.touches[0].clientY; }, { passive: true });
+  let tx = 0, ty = 0, tTarget = null;
+  document.addEventListener('touchstart', e => {
+    tx = e.touches[0].clientX;
+    ty = e.touches[0].clientY;
+    tTarget = e.target;
+  }, { passive: true });
   document.addEventListener('touchend', e => {
     if (document.getElementById('modal-backdrop')?.style.display !== 'none') return;
-    if (STATE.screen === 'mentor') return; // don't swipe on chat
+    if (STATE.screen === 'mentor') return;
+    // Don't swipe if touch started inside any scrollable or interactive container
+    if (tTarget && tTarget.closest(
+      '.h-scroll, .chat-qs, #float-suggestions, #swipe-card-wrap, ' +
+      '[style*="overflow-x"], [style*="overflow-y:auto"], canvas, select, input, textarea'
+    )) return;
     const dx = e.changedTouches[0].clientX - tx;
     const dy = e.changedTouches[0].clientY - ty;
-    if (Math.abs(dx) > 65 && Math.abs(dx) > Math.abs(dy) * 1.8) {
+    // Require strong horizontal gesture: 130px minimum, must be mostly horizontal
+    if (Math.abs(dx) > 130 && Math.abs(dx) > Math.abs(dy) * 3.5) {
       const cur = NAV_ORDER.indexOf(STATE.screen);
       if (cur !== -1) {
         if (dx < 0 && cur < NAV_ORDER.length - 1) navigate(NAV_ORDER[cur + 1]);
@@ -381,4 +317,4 @@ document.addEventListener('click', e => {
 // Auto-save every 30s
 setInterval(saveState, 30000);
 
-
+/* === js/notifications.js === */
