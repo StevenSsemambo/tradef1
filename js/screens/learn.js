@@ -1,4 +1,3 @@
-/* ═══ LEARN SCREENS ═══ */
 /* ═══════════════════════════════════════════
    LEARN, PROFILE, TOOLS SCREENS
    ═══════════════════════════════════════════ */
@@ -201,9 +200,21 @@ function completelesson(id) {
     STATE.progress[id] = true;
     const found = getLessonById(id);
     const xp = found?.lesson?.xp || 50;
+    const prevLevel = STATE.user.level;
     addXP(xp);
-    showToast(`🎓 Lesson complete! +${xp} XP`);
     saveState();
+    const totalDone = Object.keys(STATE.progress).length;
+    const isFirstLesson = totalDone === 1;
+    const leveledUp = STATE.user.level > prevLevel;
+    setTimeout(() => {
+      if (leveledUp && typeof showCelebration === 'function') {
+        showCelebration('level_up', { level: STATE.user.level });
+      } else if (isFirstLesson && typeof showCelebration === 'function') {
+        showCelebration('lesson_complete', { xp, lessonsLeft: totalLessons() - totalDone });
+      } else {
+        showToast(`🎓 Lesson complete! +${xp} XP`);
+      }
+    }, 300);
   }
   renderScreen('lesson');
 }
@@ -303,17 +314,17 @@ function renderFlashcards() {
       <span class="pill pill-gold">${(_flashIdx % total) + 1}/${total}</span>
     </div>
     <div class="prog-bar a-fadeup2" style="margin-bottom:16px"><div class="prog-fill" style="width:${Math.round(seen/total*100)}%"></div></div>
-    <div class="flashcard-wrap a-fadeup2" onclick="_flashFlipped=!_flashFlipped;renderScreen('flashcards')">
-      <div class="flashcard ${_flashFlipped ? 'flipped' : ''}" style="min-height:220px;position:relative">
-        <div class="fc-front">
-          <div style="font-size:11px;color:var(--txt3);font-family:var(--display);letter-spacing:1.5px;margin-bottom:16px">QUESTION</div>
-          <div style="font-family:var(--display);font-weight:700;font-size:19px;line-height:1.3">${card.q}</div>
-          <div class="fc-hint">TAP TO FLIP</div>
-        </div>
-        <div class="fc-back">
-          <div style="font-size:11px;color:var(--gold);font-family:var(--display);letter-spacing:1.5px;margin-bottom:16px">ANSWER</div>
-          <div style="font-size:14px;line-height:1.65;color:var(--txt)">${card.a}</div>
-        </div>
+    <div class="flashcard-wrap a-fadeup2" onclick="_flashFlipped=!_flashFlipped;renderScreen('flashcards')" style="cursor:pointer">
+      <div style="background:var(--bg2);border:1px solid var(--bdr2);border-radius:var(--r,12px);padding:24px 20px;min-height:220px;display:flex;flex-direction:column;justify-content:center;position:relative;transition:all .3s">
+        ${_flashFlipped ? `
+          <div style="font-size:11px;color:var(--amber);font-family:var(--display);letter-spacing:1.5px;margin-bottom:16px;font-weight:700">✅ ANSWER</div>
+          <div style="font-size:14px;line-height:1.7;color:var(--txt)">${card.a}</div>
+          <div style="font-size:10px;color:var(--txt3);font-family:monospace;letter-spacing:1px;text-transform:uppercase;margin-top:auto;padding-top:16px;text-align:center">TAP TO FLIP BACK</div>
+        ` : `
+          <div style="font-size:11px;color:var(--txt3);font-family:var(--display);letter-spacing:1.5px;margin-bottom:16px;font-weight:700">QUESTION ${(_flashIdx % total) + 1}</div>
+          <div style="font-family:var(--display);font-weight:700;font-size:19px;line-height:1.4;color:var(--txt)">${card.q}</div>
+          <div style="font-size:10px;color:var(--amber);font-family:monospace;letter-spacing:1px;text-transform:uppercase;margin-top:auto;padding-top:16px;text-align:center;animation:pulse 2s ease infinite">👆 TAP TO REVEAL ANSWER</div>
+        `}
       </div>
     </div>
     ${_flashFlipped ? `
@@ -342,6 +353,54 @@ function gradeFlashcard(correct) {
 
 // ── PATTERN GAME ──
 let _pgIdx = 0, _pgAnswered = false;
+
+// Extended pattern game uses BOTH PATTERN_QUIZ and CANDLE_PATTERNS
+function getExtendedPatterns() {
+  // Build pattern quiz entries from candle patterns too
+  const extra = [
+    {name:'Dragonfly Doji', type:'Bullish Reversal', winrate:'62-67%', timeframe:'H4/D1',
+     hint:'Open = Close at the HIGH with very long lower wick',
+     meaning:'Strong bullish rejection — price tested lows but closed at the high',
+     rules:'At support levels or downtrend bottoms.',
+     candles:[{o:0.65,h:0.66,l:0.30,c:0.65,bull:true}]},
+    {name:'Gravestone Doji', type:'Bearish Reversal', winrate:'61-66%', timeframe:'H4/D1',
+     hint:'Open = Close at the LOW with very long upper wick',
+     meaning:'Strong bearish rejection — price tested highs but closed at the low',
+     rules:'At resistance levels or uptrend highs.',
+     candles:[{o:0.35,h:0.70,l:0.34,c:0.35,bull:false}]},
+    {name:'Piercing Line', type:'Bullish Reversal', winrate:'58-63%', timeframe:'H4/D1',
+     hint:'A bullish candle opens below the previous bearish candle low and closes above its midpoint',
+     meaning:'Buyers absorbing selling pressure and pushing back strongly',
+     rules:'At downtrend lows or support zones.',
+     candles:[{o:0.45,h:0.42,l:0.68,c:0.65,bull:false},{o:0.70,h:0.65,l:0.52,c:0.53,bull:true}]},
+    {name:'Dark Cloud Cover', type:'Bearish Reversal', winrate:'56-61%', timeframe:'H4/D1',
+     hint:'A bearish candle opens above the previous bullish candle high and closes below its midpoint',
+     meaning:'Sellers overwhelming buyers at a key level',
+     rules:'At uptrend highs or resistance zones.',
+     candles:[{o:0.60,h:0.63,l:0.42,c:0.44,bull:true},{o:0.38,h:0.40,l:0.57,c:0.55,bull:false}]},
+    {name:'Marubozu', type:'Trend Confirmation', winrate:'58-65%', timeframe:'All TFs',
+     hint:'A full-body candle with no wicks at all — open = low, close = high (or vice versa)',
+     meaning:'Maximum conviction — one side completely dominated the entire session',
+     rules:'Most powerful when starting a new trend after a consolidation.',
+     candles:[{o:0.65,h:0.65,l:0.40,c:0.40,bull:false},{o:0.40,h:0.40,l:0.65,c:0.65,bull:true}]},
+    {name:'Three White Soldiers', type:'Strong Bullish', winrate:'70-75%', timeframe:'D1',
+     hint:'Three consecutive large green candles each closing higher than the previous',
+     meaning:'Bulls completely in control — one of the strongest reversal patterns',
+     rules:'Each opens near previous close. Best at major lows after extended downtrend.',
+     candles:[{o:0.62,h:0.60,l:0.55,c:0.56,bull:true},{o:0.56,h:0.53,l:0.47,c:0.48,bull:true},{o:0.48,h:0.45,l:0.38,c:0.39,bull:true}]},
+    {name:'Three Black Crows', type:'Strong Bearish', winrate:'68-73%', timeframe:'D1',
+     hint:'Three consecutive large red candles each closing lower than the previous',
+     meaning:'Bears completely in control — mirror of Three White Soldiers',
+     rules:'Each opens near previous close. Best at major highs after extended uptrend.',
+     candles:[{o:0.38,h:0.40,l:0.47,c:0.46,bull:false},{o:0.46,h:0.48,l:0.55,c:0.54,bull:false},{o:0.54,h:0.57,l:0.65,c:0.64,bull:false}]},
+    {name:'Tweezer Top', type:'Bearish Reversal', winrate:'58-63%', timeframe:'H4/D1',
+     hint:'Two consecutive candles with nearly identical HIGHS at a resistance level',
+     meaning:'Double rejection at the same price — sellers defending that level aggressively',
+     rules:'Must appear at resistance or swing highs. Second candle should be bearish.',
+     candles:[{o:0.52,h:0.38,l:0.55,c:0.54,bull:true},{o:0.53,h:0.38,l:0.65,c:0.62,bull:false}]},
+  ];
+  return [...PATTERN_QUIZ, ...extra];
+}
 
 function renderPatternGame() {
   const p = PATTERN_QUIZ[_pgIdx % PATTERN_QUIZ.length];
@@ -465,31 +524,86 @@ function renderCandleBible() {
   </div>`;
 }
 
+function getCandlePatternSVG(name) {
+  const W=200, H=110;
+  function c(x,o,h,l,cl,w,bull) {
+    const col=bull?'#22C55E':'#EF4444';
+    const scale=H*0.85, off=H*0.05;
+    const allP=[o,h,l,cl];
+    const mn=Math.min(...allP), mx=Math.max(...allP);
+    const rng=mx-mn||0.01;
+    const sy=v=>off+(1-(v-mn)/rng)*scale;
+    const bT=Math.min(sy(o),sy(cl)), bH=Math.max(2,Math.abs(sy(o)-sy(cl)));
+    return `<g><line x1="${x}" y1="${sy(h)}" x2="${x}" y2="${sy(l)}" stroke="${col}" stroke-width="1.5"/>
+      <rect x="${x-w/2}" y="${bT}" width="${w}" height="${bH}" fill="${col}" rx="1"/></g>`;
+  }
+  const svgs = {
+    'Hammer':         `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="#13131A" rx="4"/>${c(100,90,92,40,88,22,true)}</svg>`,
+    'Inverted Hammer':`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="#13131A" rx="4"/>${c(100,45,90,42,48,22,true)}</svg>`,
+    'Shooting Star':  `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="#13131A" rx="4"/>${c(100,55,90,52,58,22,false)}</svg>`,
+    'Hanging Man':    `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="#13131A" rx="4"/>${c(100,55,57,20,52,22,false)}</svg>`,
+    'Doji':           `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="#13131A" rx="4"/>${c(100,60,85,35,60,2,true)}</svg>`,
+    'Dragonfly Doji': `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="#13131A" rx="4"/>${c(100,65,66,30,65,2,true)}</svg>`,
+    'Gravestone Doji':`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="#13131A" rx="4"/>${c(100,35,70,34,35,2,false)}</svg>`,
+    'Bullish Engulfing':`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="#13131A" rx="4"/>
+      ${c(80,55,53,60,57,16,false)}${c(120,62,45,65,47,24,true)}</svg>`,
+    'Bearish Engulfing':`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="#13131A" rx="4"/>
+      ${c(80,47,45,52,49,16,true)}${c(120,44,65,40,62,24,false)}</svg>`,
+    'Morning Star':   `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="#13131A" rx="4"/>
+      ${c(65,40,37,68,65,18,false)}${c(100,68,65,72,69,14,true)}${c(135,62,38,64,40,18,true)}</svg>`,
+    'Evening Star':   `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="#13131A" rx="4"/>
+      ${c(65,65,68,38,40,18,true)}${c(100,37,35,42,38,14,false)}${c(135,43,65,40,62,18,false)}</svg>`,
+    'Marubozu':       `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="#13131A" rx="4"/>
+      ${c(80,65,65,40,40,22,false)}${c(130,40,40,65,65,22,true)}</svg>`,
+    'Three White Soldiers':`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="#13131A" rx="4"/>
+      ${c(60,68,66,55,56,18,true)}${c(100,55,52,42,43,18,true)}${c(140,43,40,28,29,18,true)}</svg>`,
+    'Three Black Crows':`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="#13131A" rx="4"/>
+      ${c(60,35,37,48,47,18,false)}${c(100,48,50,60,59,18,false)}${c(140,59,62,72,71,18,false)}</svg>`,
+    'Piercing Line':  `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="#13131A" rx="4"/>
+      ${c(80,42,38,65,63,18,false)}${c(130,67,62,48,50,18,true)}</svg>`,
+    'Dark Cloud Cover':`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="#13131A" rx="4"/>
+      ${c(80,65,68,42,44,18,true)}${c(130,38,42,59,57,18,false)}</svg>`,
+    'Tweezer Top':    `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="#13131A" rx="4"/>
+      ${c(80,55,40,65,62,18,true)}${c(130,55,40,65,44,18,false)}
+      <line x1="40" y1="${H*0.37}" x2="160" y2="${H*0.37}" stroke="#F97316" stroke-width="1" stroke-dasharray="4,3"/></svg>`,
+    'Tweezer Bottom': `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="#13131A" rx="4"/>
+      ${c(80,43,72,42,68,18,false)}${c(130,59,72,42,45,18,true)}
+      <line x1="40" y1="${H*0.62}" x2="160" y2="${H*0.62}" stroke="#22C55E" stroke-width="1" stroke-dasharray="4,3"/></svg>`,
+  };
+  return svgs[name] || `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="#13131A" rx="4"/><text x="${W/2}" y="${H/2+5}" text-anchor="middle" fill="#9B9891" font-size="12">Pattern Visual</text></svg>`;
+}
+
 function showCandleDetail(name) {
-  const p = CANDLE_PATTERNS.find(x => x.name === name || x.name.replace(/'/g,'') === name);
+  const p = CANDLE_PATTERNS.find(x => x.name === name);
   if (!p) return;
+  const svg = getCandlePatternSVG(name);
   showModal(`<div class="modal-handle"></div>
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
       <span style="font-size:36px">${p.emoji}</span>
-      <div><div style="font-family:var(--display);font-weight:800;font-size:19px">${p.name}</div>
-      <span class="pill ${p.type.includes('Bullish')?'pill-green':p.type.includes('Bearish')?'pill-red':'pill-gold'}">${p.type}</span></div>
+      <div>
+        <div style="font-family:var(--display);font-weight:800;font-size:18px">${p.name}</div>
+        <div style="font-size:12px;color:var(--txt2);margin-top:2px">${p.type} · ${p.reliability} · ${p.timeframe}</div>
+      </div>
     </div>
-    <div style="margin-bottom:12px"><div class="section-lbl">Description</div><p style="font-size:14px;color:var(--txt2);line-height:1.6">${p.desc}</p></div>
-    <div style="margin-bottom:12px"><div class="section-lbl">Trading Rules</div><p style="font-size:13px;color:var(--txt2);line-height:1.6">${p.rules}</p></div>
-    <div style="margin-bottom:14px"><div class="section-lbl">Statistics</div><p style="font-size:13px;color:var(--txt2);line-height:1.6">${p.stats}</p></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
-      <span class="pill pill-gold">Reliability: ${p.reliability}</span>
-      <span class="pill pill-blue">Best TF: ${p.timeframe}</span>
+    <div style="border-radius:8px;overflow:hidden;margin-bottom:14px">${svg}</div>
+    <div class="section-lbl">What Is It?</div>
+    <p style="font-size:13px;color:var(--txt2);line-height:1.7;margin-bottom:12px">${p.desc}</p>
+    <div class="section-lbl">Trading Rules</div>
+    <p style="font-size:13px;color:var(--txt2);line-height:1.7;margin-bottom:12px">${p.rules}</p>
+    <div class="section-lbl">Statistics</div>
+    <div class="card" style="padding:10px;margin-bottom:14px;background:var(--bg4)">
+      <p style="font-size:12px;color:var(--txt2);line-height:1.6;margin:0">${p.stats}</p>
     </div>
-    <button class="btn btn-gold" onclick="closeModal();addXP(5);showToast('📚 Pattern studied! +5 XP')">Got it! +5 XP</button>`);
+    <button class="btn btn-gold" onclick="closeModal();addXP(15);showToast('📚 Pattern studied! +15 XP')">Mark as Studied +15 XP</button>
+  `);
 }
 
-// ── STRATEGIES ──
-let _stratFilter = 'All';
-
 function renderStrategies() {
+  if (typeof STRATEGIES === 'undefined' || !STRATEGIES.length) {
+    return `<div class="screen-pad"><div class="pg-header a-fadeup"><button class="back-btn" onclick="navigate('learn')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg></button><h1 class="pg-title">Strategies</h1></div><div class="card" style="padding:20px;text-align:center"><div style="font-size:36px;margin-bottom:12px">⚔️</div><div style="font-family:var(--display);font-weight:700">Loading strategies...</div><div style="font-size:13px;color:var(--txt2);margin-top:8px">Complete a few lessons first to unlock the Strategy Library.</div><button class="btn btn-outline" style="margin-top:14px" onclick="navigate('learn')">← Back to Learn</button></div></div>`;
+  }
   const styles = ['All','Day Trade','Swing','Swing/Day','Day/Swing','Scalping','Position'];
-  const filtered = _stratFilter === 'All' ? STRATEGIES : STRATEGIES.filter(s => s.style.includes(_stratFilter));
+  const filtered = _stratFilter === 'All' ? STRATEGIES : STRATEGIES.filter(s => s.style && s.style.includes(_stratFilter));
   return `<div class="screen-pad">
     <div class="pg-header a-fadeup" style="padding:0 0 12px">
       <div style="display:flex;gap:10px;align-items:center">
@@ -529,8 +643,9 @@ function renderStrategies() {
 }
 
 function showStratDetail(id) {
+  if (typeof STRATEGIES === 'undefined') return;
   const s = STRATEGIES.find(x => x.id === id);
-  if (!s) return;
+  if (!s) { showToast('Strategy not found'); return; }
   showModal(`<div class="modal-handle"></div>
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
       <span style="font-size:36px">${s.emoji}</span>
@@ -555,4 +670,4 @@ function showStratDetail(id) {
     <button class="btn btn-gold" onclick="closeModal();addXP(10);showToast('📊 Strategy studied! +10 XP')">Add to Toolkit +10 XP</button>`);
 }
 
-
+/* === js/screens/trade.js === */
